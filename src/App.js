@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+// D&D Fantasy Months
+const fantasyMonths = [
+  'Hammer', 'Alturiak', 'Ches', 'Tarsakh', 'Mirtul', 'Kythorn',
+  'Flamerule', 'Eleasis', 'Eleint', 'Marpenoth', 'Uktar', 'Nightal'
+];
+
 const initialResourcesData = [
   { resource: 'Gold (gp)', base: 500, production: 650, net: 150 },
   { resource: 'Lumber', base: 300, production: 250, net: -50 },
@@ -47,44 +53,57 @@ const workersData = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('resources');
-  const [currentMonth, setCurrentMonth] = useState(0);
+  const [currentYear, setCurrentYear] = useState(0); // Start at Year 0
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0); // Start at Hammer (index 0)
   const [resources, setResources] = useState(initialResourcesData);
+
+  // Get the current month name
+  const currentMonth = fantasyMonths[currentMonthIndex];
 
   // Fetch resources for the current month when the component mounts or the month changes
   useEffect(() => {
-    fetch(`http://localhost:5000/api/resources/${currentMonth}`)
-      .then(res => res.json())
+    fetch(`http://localhost:5000/api/resources/${currentYear}/${currentMonth}`)
+      .then(res => {
+        if (!res.ok) return [];
+        return res.json();
+      })
       .then(data => {
         if (data.length > 0) {
           setResources(data);
+        } else {
+          setResources(initialResourcesData);
         }
       })
       .catch(err => console.error('Error fetching resources:', err));
-  }, [currentMonth]);
+  }, [currentYear, currentMonth]);
 
   // Function to simulate the passage of a month
-  const stepMonth = () => {
-    const updatedResources = resources.map(resource => ({ ...resource }));
+  const stepMonth = (direction) => {
+    let newYear = currentYear;
+    let newMonthIndex = currentMonthIndex;
 
-    workersData.forEach(worker => {
-      const resource = updatedResources.find(r => r.resource === worker.bonus.resource);
-      if (resource) {
-        resource.production += worker.bonus.value;
-        resource.net = resource.production - resource.base;
+    if (direction === 'next') {
+      newMonthIndex += 1;
+      if (newMonthIndex >= fantasyMonths.length) {
+        newMonthIndex = 0;
+        newYear += 1;
       }
-    });
+    } else if (direction === 'prev') {
+      newMonthIndex -= 1;
+      if (newMonthIndex < 0) {
+        newMonthIndex = fantasyMonths.length - 1;
+        newYear -= 1;
+      }
+    }
 
-    // Save the updated resources to the backend
-    fetch('http://localhost:5000/api/resources', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ month: currentMonth + 1, resources: updatedResources })
-    })
-      .then(() => {
-        setResources(updatedResources);
-        setCurrentMonth(prevMonth => prevMonth + 1);
-      })
-      .catch(err => console.error('Error saving resources:', err));
+    // Prevent going before Year 0
+    if (newYear < 0) {
+      alert('Cannot go before Year 0');
+      return;
+    }
+
+    setCurrentYear(newYear);
+    setCurrentMonthIndex(newMonthIndex);
   };
 
   return (
@@ -108,8 +127,11 @@ function App() {
       {activeTab === 'resources' && (
         <div className="resources">
           <h2>Resource Needs vs. Outputs</h2>
-          <p>Current Month: {currentMonth}</p>
-          <button onClick={stepMonth}>Advance Month</button>
+          <p>Month: {currentMonth} Year: {currentYear}</p>
+          <div className="month-controls">
+            <button onClick={() => stepMonth('prev')}>Previous Month</button>
+            <button onClick={() => stepMonth('next')}>Next Month</button>
+          </div>
           <table>
             <thead>
               <tr>
