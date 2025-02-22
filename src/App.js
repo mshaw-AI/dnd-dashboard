@@ -1,8 +1,8 @@
-// App.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 
-const resourcesData = [
+// Initial resources data with mutable values
+const initialResourcesData = [
   { resource: 'Gold (gp)', base: 500, production: 650, net: 150 },
   { resource: 'Lumber', base: 300, production: 250, net: -50 },
   { resource: 'Stone', base: 200, production: 300, net: 100 }
@@ -14,47 +14,61 @@ const workersData = [
     occupation: 'Stonemason',
     species: 'Mountain Dwarf',
     age: 65,
-    bonus: 'Stone +50/month'
+    bonus: { resource: 'Stone', value: 50 } // Stone production bonus
   },
   {
     name: 'Seraphina Brightwind',
     occupation: 'Priest/Medic',
     species: 'Half-Elf',
     age: 32,
-    bonus: 'Medicinal supplies +30/month'
+    bonus: { resource: 'Gold (gp)', value: 30 } // Medicinal supplies bonus
   },
   {
     name: 'Marcellus Quillwright',
     occupation: 'Scribe',
     species: 'Human',
     age: 47,
-    bonus: 'Improved logistics'
+    bonus: { resource: 'Lumber', value: -20 } // Improved logistics (reduces consumption)
   },
   {
     name: 'Tilda Brambleshanks',
     occupation: 'Chef',
     species: 'Halfling',
     age: 38,
-    bonus: 'Food morale boost'
+    bonus: { resource: 'Gold (gp)', value: 20 } // Food morale boost
   },
   {
     name: 'Roderick Ledgerhart',
     occupation: 'Quartermaster',
     species: 'Human',
     age: 42,
-    bonus: 'Reduces consumption by 10%'
+    bonus: { resource: 'Lumber', value: -10 } // Reduces consumption by 10%
   }
 ];
 
 function App() {
   const [activeTab, setActiveTab] = useState('resources');
+  const [currentMonth, setCurrentMonth] = useState(0);
+  const [resources, setResources] = useState(initialResourcesData);
 
-  // Example of integrating API calls:
-  // useEffect(() => {
-  //   fetch('/api/resources')
-  //     .then(res => res.json())
-  //     .then(data => setResources(data));
-  // }, []);
+  // Function to simulate the passage of a month
+  const stepMonth = () => {
+    // Create a copy of resources to avoid mutating state directly
+    const updatedResources = resources.map(resource => ({ ...resource }));
+
+    // Apply worker bonuses to resources
+    workersData.forEach(worker => {
+      const resource = updatedResources.find(r => r.resource === worker.bonus.resource);
+      if (resource) {
+        resource.production += worker.bonus.value;
+        resource.net = resource.production - resource.base;
+      }
+    });
+
+    // Update the state with the new resource values
+    setResources(updatedResources);
+    setCurrentMonth(prevMonth => prevMonth + 1);
+  };
 
   return (
     <div className="container">
@@ -77,6 +91,8 @@ function App() {
       {activeTab === 'resources' && (
         <div className="resources">
           <h2>Resource Needs vs. Outputs</h2>
+          <p>Current Month: {currentMonth}</p>
+          <button onClick={stepMonth}>Advance Month</button>
           <table>
             <thead>
               <tr>
@@ -87,7 +103,7 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {resourcesData.map((row, idx) => (
+              {resources.map((row, idx) => (
                 <tr key={idx}>
                   <td>{row.resource}</td>
                   <td>{row.base}</td>
@@ -119,7 +135,8 @@ function App() {
                   <strong>Age:</strong> {worker.age}
                 </p>
                 <p>
-                  <strong>Bonus:</strong> {worker.bonus}
+                  <strong>Bonus:</strong> {worker.bonus.resource} {worker.bonus.value >= 0 ? '+' : ''}
+                  {worker.bonus.value}
                 </p>
               </div>
             ))}
