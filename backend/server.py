@@ -1,100 +1,69 @@
-from flask import Flask, jsonify, request
-import sqlite3
-import datetime
-import json
+from flask import Flask, request, jsonify
+from flask_cors import CORS  # Import CORS
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# Connect to SQLite database
+def get_db_connection():
+    conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # Initialize the database
 def init_db():
-    conn = sqlite3.connect("fort_management.db")
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS resources (
-                    id INTEGER PRIMARY KEY,
-                    gold INTEGER,
-                    lumber INTEGER,
-                    stone INTEGER,
-                    timestamp TEXT
-                 )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS workers (
-                    id INTEGER PRIMARY KEY,
-                    name TEXT,
-                    role TEXT,
-                    production TEXT,
-                    consumption TEXT
-                 )''')
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS resources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            month INTEGER NOT NULL,
+            resource TEXT NOT NULL,
+            base INTEGER NOT NULL,
+            production INTEGER NOT NULL,
+            net INTEGER NOT NULL
+        )
+    ''')
     conn.commit()
     conn.close()
 
-# Initialize default resources and workers
-def seed_data():
-    conn = sqlite3.connect("fort_management.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO resources (gold, lumber, stone, timestamp) VALUES (1000, 500, 500, ?)", (datetime.datetime.now(),))
-    workers = [
-        ("Garek Stonefist", "Stonemason", json.dumps({"stone": 10}), json.dumps({"gold": 2})),
-        ("Sister Elira", "Priest/Medic", json.dumps({}), json.dumps({"gold": 5})),
-        ("Varis Quill", "Scribe", json.dumps({}), json.dumps({"gold": 3})),
-        ("Marla Brewpot", "Chef", json.dumps({}), json.dumps({"gold": 2})),
-        ("Captain Drexel", "Quartermaster", json.dumps({"lumber": 5}), json.dumps({"gold": 4}))
-    ]
-    c.executemany("INSERT INTO workers (name, role, production, consumption) VALUES (?, ?, ?, ?)", workers)
+# Endpoint to save resources for a specific month
+@app.route('/api/resources', methods=['POST'])
+def save_resources():
+    data = request.json
+    month = data['month']
+    resources = data['resources']
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    for resource in resources:
+        cursor.execute('''
+            INSERT INTO resources (month, resource, base, production, net)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (month, resource['resource'], resource['base'], resource['production'], resource['net']))
+
     conn.commit()
     conn.close()
+    return jsonify({'message': 'Resources saved successfully'}), 201
 
-@app.route("/get_resources", methods=["GET"])
-def get_resources():
-    conn = sqlite3.connect("fort_management.db")
-    c = conn.cursor()
-    c.execute("SELECT gold, lumber, stone FROM resources ORDER BY id DESC LIMIT 1")
-    row = c.fetchone()
+# Endpoint to retrieve resources for a specific month
+@app.route('/api/resources/<int:month>', methods=['GET'])
+def get_resources(month):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT resource, base, production, net FROM resources WHERE month = ?', (month,))
+    rows = cursor.fetchall()
+
     conn.close()
-    return jsonify({"gold": row[0], "lumber": row[1], "stone": row[2]})
 
-@app.route("/get_workers", methods=["GET"])
-def get_workers():
-    conn = sqlite3.connect("fort_management.db")
-    c = conn.cursor()
-    c.execute("SELECT name, role, production, consumption FROM workers")
-    workers = [{"name": row[0], "role": row[1], "production": json.loads(row[2]), "consumption": json.loads(row[3])} for row in c.fetchall()]
-    conn.close()
-    return jsonify(workers)
+    if not rows:
+        return jsonify({'error': 'No data found for this month'}), 404
 
-@app.route("/next_month", methods=["POST"])
-def next_month():
-    conn = sqlite3.connect("fort_management.db")
-    c = conn.cursor()
-    c.execute("SELECT gold, lumber, stone FROM resources ORDER BY id DESC LIMIT 1")
-    gold, lumber, stone = c.fetchone()
-    
-    c.execute("SELECT production, consumption FROM workers")
-    for row in c.fetchall():
-        production = json.loads(row[0])
-        consumption = json.loads(row[1])
-        
-        for key, value in production.items():
-            if key == "gold":
-                gold += value
-            elif key == "lumber":
-                lumber += value
-            elif key == "stone":
-                stone += value
-        
-        for key, value in consumption.items():
-            if key == "gold":
-                gold -= value
-            elif key == "lumber":
-                lumber -= value
-            elif key == "stone":
-                stone -= value
-    
-    c.execute("INSERT INTO resources (gold, lumber, stone, timestamp) VALUES (?, ?, ?, ?)",
-              (gold, lumber, stone, datetime.datetime.now()))
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Resources updated for next month", "gold": gold, "lumber": lumber, "stone": stone})
+    resources = [dict(row) for row in rows]
+    return jsonify(resources)
 
-if __name__ == "__main__":
+# Start the server
+if __name__ == '__main__':
     init_db()
-    seed_data()
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

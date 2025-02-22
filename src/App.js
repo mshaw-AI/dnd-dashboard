@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// Initial resources data with mutable values
 const initialResourcesData = [
   { resource: 'Gold (gp)', base: 500, production: 650, net: 150 },
   { resource: 'Lumber', base: 300, production: 250, net: -50 },
@@ -14,35 +13,35 @@ const workersData = [
     occupation: 'Stonemason',
     species: 'Mountain Dwarf',
     age: 65,
-    bonus: { resource: 'Stone', value: 50 } // Stone production bonus
+    bonus: { resource: 'Stone', value: 50 }
   },
   {
     name: 'Seraphina Brightwind',
     occupation: 'Priest/Medic',
     species: 'Half-Elf',
     age: 32,
-    bonus: { resource: 'Gold (gp)', value: 30 } // Medicinal supplies bonus
+    bonus: { resource: 'Gold (gp)', value: 30 }
   },
   {
     name: 'Marcellus Quillwright',
     occupation: 'Scribe',
     species: 'Human',
     age: 47,
-    bonus: { resource: 'Lumber', value: -20 } // Improved logistics (reduces consumption)
+    bonus: { resource: 'Lumber', value: -20 }
   },
   {
     name: 'Tilda Brambleshanks',
     occupation: 'Chef',
     species: 'Halfling',
     age: 38,
-    bonus: { resource: 'Gold (gp)', value: 20 } // Food morale boost
+    bonus: { resource: 'Gold (gp)', value: 20 }
   },
   {
     name: 'Roderick Ledgerhart',
     occupation: 'Quartermaster',
     species: 'Human',
     age: 42,
-    bonus: { resource: 'Lumber', value: -10 } // Reduces consumption by 10%
+    bonus: { resource: 'Lumber', value: -10 }
   }
 ];
 
@@ -51,12 +50,22 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(0);
   const [resources, setResources] = useState(initialResourcesData);
 
+  // Fetch resources for the current month when the component mounts or the month changes
+  useEffect(() => {
+    fetch(`http://localhost:5000/api/resources/${currentMonth}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.length > 0) {
+          setResources(data);
+        }
+      })
+      .catch(err => console.error('Error fetching resources:', err));
+  }, [currentMonth]);
+
   // Function to simulate the passage of a month
   const stepMonth = () => {
-    // Create a copy of resources to avoid mutating state directly
     const updatedResources = resources.map(resource => ({ ...resource }));
 
-    // Apply worker bonuses to resources
     workersData.forEach(worker => {
       const resource = updatedResources.find(r => r.resource === worker.bonus.resource);
       if (resource) {
@@ -65,9 +74,17 @@ function App() {
       }
     });
 
-    // Update the state with the new resource values
-    setResources(updatedResources);
-    setCurrentMonth(prevMonth => prevMonth + 1);
+    // Save the updated resources to the backend
+    fetch('http://localhost:5000/api/resources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: currentMonth + 1, resources: updatedResources })
+    })
+      .then(() => {
+        setResources(updatedResources);
+        setCurrentMonth(prevMonth => prevMonth + 1);
+      })
+      .catch(err => console.error('Error saving resources:', err));
   };
 
   return (

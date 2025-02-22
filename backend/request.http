@@ -1,0 +1,15 @@
+### Save Resources for Month 1
+POST http://localhost:5000/api/resources HTTP/1.1
+Content-Type: application/json
+
+{
+  "month": 1,
+  "resources": [
+    { "resource": "Gold (gp)", "base": 500, "production": 650, "net": 150 },
+    { "resource": "Lumber", "base": 300, "production": 250, "net": -50 },
+    { "resource": "Stone", "base": 200, "production": 300, "net": 100 }
+  ]
+}
+
+### Retrieve Resources for Month 1
+GET http://localhost:5000/api/resources/1 HTTP/1.1
